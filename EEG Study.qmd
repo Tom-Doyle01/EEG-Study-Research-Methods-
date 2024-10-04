@@ -1,0 +1,909 @@
+---
+title: "A Non-Replication of Gantman et al. (2020) With Modifications"
+author: Thomas Doyle
+format: html
+editor: visual
+---
+
+# Introduction
+
+There has been a recent push within both the psychological sciences and science at large to deal with the replication crisis, which describes how a low proportion of studies have been reliably reproduced (Open Science Foundation, 2015). Replicability is considered to be an indicator of reliability (Frank & Saxe, 2012), so the replication crisis represents a troubling lack of reliability within the psychological sciences. Moreover, original studies mostly have higher effect sizes than their replications, which implies that the publication, selection, and reporting biases have contributed to the replication crisis (Open Science Foundation, 2015). More broadly speaking, the replication crisis reveals that many members of the scientific community are concerned more with publishing results than with ensuring that their research consists of sound methodology. For example, a multitude of experiments have claimed to find convincing evidence for top-down perceptual effects on cognition (Firestone & Scholl, 2016). Almost all of these studies make at least one methodological error such that a top-down cognitive effect on perception is not the only likely cause of their findings (Firestone & Scholl, 2016). Therefore, there is a lack of strong evidence for cognitive penetrability. Replications can be utilized to help demystify this debate about cognitive penetrability by giving researchers a chance to revisit previous research and correct both theoretical and methodological errors. That is, replicating previous studies allows researchers to revisit each others' ideas and slowly improve upon them over time. In line with this view of replication, Protzko et al. (2023) found that 86% of studies replicated when researchers utilized confirmatory testing, large sample sizes, preregistration, and methodological transparency. When looking at a lab trying to replicate an effect found in another lab, the replication rate skyrocketed to 97% (Protzko et al., 2023).
+
+The current research is a modified replication of Gantman et al. (2020) and aims to study the moral pop-out effect while also controlling for past theoretical and methodological errors. That is, we intend to apply these benefits of replication to a proposed effect. Gantman & Vabel (2014) claim that, because of the moral pop-out effect, participants recognize moral words as words more quickly than non-moral words because moral words are in a privileged category (i. e., a category that has important information as opposed to superficial information) whereas non-moral words are not. These researchers go on to claim that one's morality affects their perception (Gantman & Van Bavel, 2014). If the moral pop-out effect exists, then only privileged categories should produce a pop-out effect. However, Firestone & Scholl (2015) have found that participants also exhibit a pop-out effect for fashion words and transportation words, demonstrating that stimuli in unprivileged categories can result in a pop-out effect. Firestone & Scholl (2015) argue that the moral pop-out effect can be explained by semantic priming, which occurs when it is easier to respond to a word after seeing a related word. Participants are shown many moral words in a short period of time in both Gantman & Van Bavel (2014) and Firestone & Scholl (2015), so it is plausible that the repetition of words with similar, moral associations resulted in quicker responses to moral words. Semantic priming relies on memory, so if the moral pop-out effect is an example of semantic priming, then it is not a top-down perceptual effect on cognition.
+
+Gantman et al. (2020) proceeded to conduct an EEG study to examine the moral pop-out effect while measuring participants' ERPs (event-related potentials) to precisely measure when participants responded to moral and non-moral stimuli. If the moral pop-out effect exists and participants more quickly recognize moral words because of a perceptual difference, then one would expect earlier ERP components like P2 and N2 to be different when responding to moral and non-moral words. If the moral pop-out effect does not exist in isolation and participants responded to moral words more quickly because of semantic priming, then one would expect later ERP components like P3 and LPP to be different when responding to moral and non-moral words. Gantman et al. (2020) controlled for semantic priming by analyzing repeated trials, which occurred when two simultaneous trials had words of the same category (e. g. when a moral word follows another moral word). We do not find this intervention convincing, as people are capable of remembering more than one word at a time.
+
+The present study aims to examine the moral pop-out effect while controlling for semantic priming in a more complete way. We utilize an EEG to measure brain activity, as Gantman et al. (2020) did, and apply it to the experimental design of Firestone & Scholl (2015). That is, the current research assesses the difference in how quickly participants respond to both moral and non-moral words and fashion and non-fashion words while measuring their neural activity. Having participants read words from both a supposedly privileged category (moral) and an unprivileged category (fashion) allows us to see whether the moral pop-out effect is specific to privileged stimuli. If the effect is an instance of semantic priming, then one would expect a pop-out effect for both moral and fashion words. Moreover, measuring ERPs enables us to ascertain which components are different within the moral and fashion conditions If the moral pop-out effect is not a result of semantic priming, then we expect to find a difference in earlier ERP components; however, if the moral pop-out effect is in fact a result of semantic priming, then we expect to find a difference in later ERP components.
+
+```{r}
+#| label: Downloading R packges
+#| include: false
+
+library(osfr)
+library(dplyr)
+library (readr)
+library(ggplot2)
+library(ez)
+library(gee)
+library(tidyr)
+```
+
+```{r}
+#| label: Downloading data
+#| include: false
+
+osf_retrieve_node("ngtha") %>%
+  osf_ls_files() %>%
+  osf_download(path="/Users/td/Desktop/EEG/eeg_study_data", conflicts="skip")
+```
+
+```{r}
+#| label: Load behavioral data
+#| include: false
+
+behavioral_data <- read_csv("/Users/td/Desktop/EEG/eeg_study_data/behavioral.csv")
+```
+
+```{r}
+#| label: Exclude practice trials
+#| include: false
+
+behavioral_data <- behavioral_data %>%
+  filter(phase != "practice")
+```
+
+```{r}
+#| label: List of participants who got all fashion words
+#| include: false
+
+all_fashion <- behavioral_data %>%
+  filter(phase == "fashion") %>%
+  group_by(subject_id) %>%
+  count(word_type == "fashion") %>%
+  filter(n == 300) %>%
+  distinct(subject_id) %>%
+  pull(subject_id)
+```
+
+```{r}
+#| label: List of participants who gave no response over 50% of time
+#| include: false
+
+no_response <- behavioral_data %>%
+  filter(task == "response") %>%
+  filter(is.na(rt)) %>%
+  count(subject_id) %>%
+  filter(n > 300) %>%
+  pull(subject_id)
+```
+
+```{r}
+#| label: List of subjects who said non-word over 90% of time
+#| include: false
+
+non_word <- behavioral_data %>%
+  filter(task == "response") %>%
+ filter ((correct_response == "5" & correct == "TRUE") | (correct_response == "1" & correct == "FALSE")) %>%
+  count(subject_id) %>%
+  filter(n > 540) %>%
+  pull(subject_id)
+```
+
+```{r}
+#| label: List of subjects who had really bad EEG data
+#| include: false
+bad_data <- behavioral_data %>%
+  filter(subject_id == 34) %>%
+  pull(subject_id) %>% 
+  unique()
+```
+
+```{r}
+#| label: Filtering subjects
+#| include: false
+
+behavioral_summary <- behavioral_data %>%
+   filter(!subject_id %in% all_fashion & !subject_id %in% no_response & !subject_id %in% non_word & !subject_id %in% bad_data)
+```
+
+```{r}
+#| label: Getting original number of subjects
+#| include: false
+
+n_subjects_orig <- behavioral_data %>%
+  pull(subject_id) %>%
+  unique() %>%
+  length()
+```
+
+```{r}
+#| label: Getting current number of subjects
+#| include: false
+
+n_subjects <- behavioral_summary %>%
+  pull(subject_id) %>%
+  unique() %>%
+  length()
+```
+
+# Methods
+
+## Participants
+
+Originally, there were `r n_subjects_orig` subjects in the entire data set. Researchers excluded `r length(all_fashion)` subjects because they were only tested on fashion words, `r length(no_response)` subjects because they gave no response more than 50% of the time, `r length(bad_data)` subjects because they had very poor EEG data, and `r length(non_word)` subjects because they called over 90% of words on which they were tested non-words. `r n_subjects` subjects remain after these exclusions. All participants were native English speakers, students at Vassar College, and at least 18 years old. Participants were also paid \$20 after completing the study. This is double what Gantman et al. (2020) paid their participants, but we do not expect this difference to change our results. All participants provided informed consent and the current study was approved by the Vassar College Institutional Review Board.
+
+Importantly, we do not have enough participants to reach an acceptable level of statistical power. At the beginning of this study, we determined that we needed n=65 participants to reach a similar power to that in Gantman et al. (2020). However, we stopped at `r n_subjects` subjects after discovering a critical flaw in our methodology (see the end of the Procedure section).
+
+## Materials
+
+The experiment was coded with javascript using the jsPsych platform (de Leeuw, 2014). The code for the experiment can be found at https://github.com/jodeleeuw/219-2024-experiment/tree/main. Participants accessed the experiment via the Google Chrome browser and viewed it with a full HD ASUS VG248QE monitor with a resolution of 1080p and a refresh rate of 60 Hz trace-free. Participants wore a CGX Quick-20r (Q20r-0183) wireless, battery-operated full standard 10-20 montage electroencephalogram (EEG) headset with dry sensor technology. EEG channels were sampled with a resolution of 500 Hz and converted to digital data at 24 bits of resolution. Measurement and analysis were focused on the Pz and Cz electrodes, but sensors were also placed at C3, C4, P3, P4, Fz, F3, and F4. A CGX Wireless Stim Trigger with dimensions of 17.5 x 13.5 x 6cm was utilized to precisely place 16-bit simultaneous event marker data in the digital EEG data with millisecond precision. The CGX Wireless Stim Trigger has a latency of under 2 ms, a range of 20 m, a proprietary 2.4 GHz protocol, and senses the onset of visual stimuli. The Stim Trigger was connected to the keyboard used by participants via a USB connection and sensed key responses in this way. Participants utilized a Lenovo SK-8825 (L) Wired Black USB Keyboard with a power rating of 5V 100mA, a detachable rubberized palm rest, an adjustable tilt, 104 keys, and a long cable. We did not use identical materials to Gantman et al. (2020), but any differences in materials should be negligible.
+
+## Stimuli
+
+We used words from a list of moral and non-moral words and a list of fashion and non-fashion words. The moral and non-moral words were also utilized in Gantman & Bavel (2014) and Gantman et al. (2020). The fashion and non-fashion words were not used in Gantman et al. (2020), but we include them here to examine whether the moral pop-out effect is specific to privileged categories and they were used in Firestone & Scholl (2015). We did not use all of the words in these lists, but instead used a random number generator (https://numbergenerator.org) to choose subsets of them. Participants saw 75 each of moral words, non-moral words, fashion words, and non-fashion words. The non-words used in our experiment were scrambled versions of the words shown to participants. Moral non-words were scrambled versions of moral words and non-moral non-words were scrambled versions of non-moral words. Similarly, fashion non-words were scrambled versions of fashion words and non-fashion non-words were scrambled versions of non-fashion words. In order to generate non-words, we selected the first word given by the website https://wordunscrambler.net that was not a real word and did not contain a real word (e. g., evgreen). Two words (turtle and phone) were created and scrambled by researchers because we required more non-moral words. Participants saw 75 non-words from each category (moral, non-moral, fashion, and non-fashion). The word lists seen by participants can be found at[ https://docs.google.com/spreadsheets/u/0/d/1xo-MTD-7I1Iegq0pRbZVm2jWDhYJSQg7crrketylKMY/edit](https://docs.google.com/spreadsheets/u/0/d/1xo-MTD-7I1Iegq0pRbZVm2jWDhYJSQg7crrketylKMY/edit).
+
+## Procedure
+
+Subjects participated in the experiment for approximately 20 minutes while wearing the EEG cap (EEG and protocol administration took another 20-30 minutes or so). Participants sat in a dark room with the front two legs of their chair 60 centimeters away from the computer screen for all practice and regular trials. Researchers had participants sit three centimeters closer to the computer screen in Gantman et al. (2020), but we believe that this is a negligible difference between the two studies. Participants completed 20 practice trials, 10 of which had non-moral words and 10 of which had non-moral non-words. Gantman et al. (2020) had participants complete 100 practice trials (50 with words and 50 with non-words), but we had participants complete only 20 practice trials in an effort to reduce fatigue. Practice trials began with fixation crosses that were presented for decreasing intervals of time (300, 100, 60, 30, and 16 ms). Participants then saw a stimulus consisting of a letter string for 16.6 ms, followed by a fixation screen presented for 33.33 ms, a mask of backward ampersands that was presented for 25 ms. The backwards ampersands mask was of equal length to the letter string previously shown. Participants were then shown a blank screen for 1500 ms, during which they responded. Participants pressed the '1' key if they perceived the string of letters to be a word and pressed the '5' key if they perceived the string of letters to be a non-word.
+
+Participants also completed 600 regular trials in six blocks of 100 trials. Each condition had three blocks, so participants saw 300 moral blocks and 300 fashion blocks. Moral blocks of trials had 25 moral words, 25 moral non-words, 25 non-moral words, and 25 non-moral non-words. Fashion blocks of trials had 25 fashion words, 25 fashion non-words, 25 non-fashion non-words, and 25 non-fashion non-words. Participants saw moral and fashion blocks in an alternating order and were assigned to complete a moral block or a fashion block first depending on their participant number. Regular trials were identical to practice trials except participants saw a fixation cross for 400-700 ms before seeing each word.
+
+Importantly, letter strings and masks were both presented in the center of the computer screen in the current study. Gantman & Van Bavel (2014, Gantman et al. (2020), and Firestone & Scholl (2015) presented the letter strings and masks above the center of the screen. The participants in these studies continued to stare at the fixation cross while looking at the letter strings with their peripheral vision, which makes it more difficult to distinguish words from non-words. However, none of these studies included this detail and Figure 1 in Gantman & Van Bavel (2020) makes it seem as if letter strings were presented to subjects in the center of the screen. Thus, we had participants complete a much easier task than the research that we are replicating, which renders much of our findings useless.
+
+Moreover, the OSF pre-registration can be found at <https://osf.io/u4qzp> and the OSF preregistration for non-replication components can be found at <https://osf.io/u4qzp>. The lab protocol used by experimenters can be found at <https://docs.google.com/document/d/1-rQHkn-t0iU87rmg_zEHnXN1-QeXc6WPs-wnxgnK9A0/edit>.
+
+## EEG Data Preprocessing
+
+We preprocessed the EEG data before analyzing it. We first used a high pass of 0.1 Hz and a low pass of 30 Hz to get rid of unwanted noise in the data. Then, we segmented data at each event marker with -400 to 1200 as the initial extraction window. Next, we removed epochs with a range greater than or equal to 1000 microvolts. We then did a baseline correction in the -200 to 0 ms time window and performed eye blink detection and removal. Then, we resegmented to -200 to 1000, removed events with a range greater than or equal to 500 microvolts, and performed baseline correction again.
+
+# Results
+
+## Behavioral
+
+```{r}
+#| label: Get the relevant data
+#| include: false
+
+relevant_data <- behavioral_summary %>%
+  filter(task == "response") %>%
+  mutate(Word_Category = (word_type == "moral" | word_type == "fashion"))
+```
+
+```{r}
+#| label: Switching correct values for Subjects 01 and 36
+#| include: false
+
+relevant <- relevant_data %>%
+  filter(subject_id == "01" | (subject_id == "36" & word_type == "moral")) %>%
+  mutate(NewCorrect = !correct)
+```
+
+```{r}
+#| label: Getting NewCorrect values
+#| include: false
+
+relevant_data <- relevant_data %>%
+  filter(!subject_id == "01" & !(subject_id == "36" & word_type == "moral")) %>%
+  mutate(NewCorrect = correct)
+
+relevant_data <- bind_rows(relevant_data, relevant)
+```
+
+```{r}
+#| label: Get accuracy for moral words, non-moral words, fashion words, and non-fashion words
+#| include: false
+
+
+accuracy_data <- relevant_data %>%
+  filter(is_word == TRUE) %>%
+  group_by(subject_id,phase,word_type,Word_Category) %>%
+  count(correct) %>%
+  filter(phase != "practice") %>%
+  mutate(accuracy = n/75) %>%
+  filter(correct == TRUE) %>%
+  mutate(
+    in_cat = ifelse(Word_Category, accuracy, NA),
+    non_cat = ifelse(!Word_Category, accuracy, NA)) %>%
+  select(subject_id, phase, word_type, accuracy, Word_Category) %>%
+  group_by(subject_id, phase, word_type) %>%
+  mutate(row_id = row_number()) %>%
+  ungroup() %>%
+  pivot_wider(
+    id_cols = c(subject_id, phase, word_type, row_id),
+    names_from = Word_Category,
+    values_from = accuracy,
+    names_prefix = "accuracy_",
+    values_fill = list(accuracy = NA)) %>%
+  select(-row_id) %>%
+  arrange(subject_id, phase, word_type) %>%
+  group_by(subject_id, phase) %>%
+  summarize(
+    in_cat = first(na.omit(accuracy_TRUE)),
+    non_cat = first(na.omit(accuracy_FALSE))) %>%
+  ungroup()
+```
+
+```{r}
+#| label: Graph!
+#| include: true
+#| echo: false
+#| fig-cap: Figure 1. Each participant's performance for in-category words and out-of-category words. Due to the easier experimental task, overall accuracy was higher than we expected. 
+
+
+ggplot(accuracy_data, aes(x=non_cat, y=in_cat))  +
+  geom_point(size=1.7, alpha=0.5, color="darkgreen") +
+  theme_grey() + 
+  coord_cartesian(xlim=c(0.5, 1), ylim=c(0.5, 1))+
+  geom_abline(slope=1, intercept=0, linetype="dashed", color="blue")+
+  facet_wrap(~ phase)+
+  ylab("Accuracy Within Category ") +
+  xlab("Accuracy Out Of Category")
+```
+
+```{r}
+#| label: Run GEE analysis for moral pop-out effect
+#| include: false
+
+moral_gee_data <- relevant_data %>%
+  select(subject_id, is_word, phase, Word_Category, NewCorrect) %>%
+  filter(is_word == TRUE, phase == "moral")
+
+
+moral_pop_out_model <- gee(NewCorrect ~ Word_Category,
+	id = subject_id,
+	data = moral_gee_data,
+	family = binomial,
+	corstr = "exchangeable")
+
+moral_summary <- summary(moral_pop_out_model)
+
+moral_estimate <- round(moral_summary$coefficients[2, 'Estimate'],3)
+moral_robust_se <- round(moral_summary$coefficients[2, 'Robust S.E.'],3)
+moral_robust_z <- round(moral_summary$coefficients[2, 'Robust z'],3)
+
+moral_p_val <- (1 - pnorm(abs(moral_robust_z))) * 2
+```
+
+```{r}
+#| label: Create dataframe for analysis
+#| include: false
+
+fashion_gee_data <- relevant_data %>%
+  select(subject_id, is_word, phase, Word_Category, NewCorrect) %>%
+  filter(is_word == TRUE, phase == "fashion")
+```
+
+```{r}
+#| label: Run GEE analysis for fashion pop-out effect
+#| include: false
+
+fashion_pop_out_model <- gee(NewCorrect ~ Word_Category,
+	id = subject_id,
+	data = fashion_gee_data,
+	family = binomial,
+	corstr = "exchangeable")
+
+fashion_pop_out_model_summary <- summary(fashion_pop_out_model)
+
+fashion_estimate <- fashion_pop_out_model_summary$coefficients[2, 'Estimate']
+fashion_robust_se <- fashion_pop_out_model_summary$coefficients[2, 'Robust S.E.']
+fashion_robust_z <- fashion_pop_out_model_summary$coefficients[2, 'Robust z']
+
+fashion_p_val <- (1 - pnorm(abs(fashion_robust_z))) * 2
+
+```
+
+Gantman et al. (2020) claim that their results support that the moral pop-out effect exists and people perceive moral words more quickly than other words because they belong to a privileged category. We found that participants were 92.75% accurate for moral words and 91.65% for non-moral words. This difference is not large enough to be statistically significant (beta = `r moral_estimate`, *SE* = `r moral_robust_se`, *z* = `r moral_robust_z` , *p* = `r moral_p_val` ). Therefore our results do not support the existence of the moral pop-out effect.
+
+However, participants were 92.9% accurate for fashion words and 91.65% accurate for non-fashion words, which is a large enough difference to be statistically significant (beta = `r fashion_estimate`, *SE* = `r fashion_robust_se`, *z* = `r fashion_robust_z` , *p* = `r fashion_p_val` ). Thus, our results may tentatively imply the existence of a fashion pop-out effect but not a moral pop-out effect.
+
+## EEG
+
+```{r}
+#| label: Load EEG file
+#| include: false
+
+eeg_data <- read_csv("/Users/td/Desktop/EEG/eeg_study_data/eeg.csv")
+```
+
+```{r}
+#| label: Filter out the excluded subjects from the behavioral data
+#| include: false
+
+eeg_summary <- eeg_data %>%
+  filter(!subject %in% all_fashion & !subject %in% no_response & !subject %in% non_word & !subject %in% bad_data)
+```
+
+```{r}
+#| label: Switching values for Subjects 01 and 36
+#| include: false
+relevant_eeg <- eeg_summary %>%
+  filter(subject == "01" | subject == "36" & word_type == "moral") %>%
+  mutate(NewCorrect = !correct)
+```
+
+```{r}
+#| label: Getting NewCorrect values for the rest of the trials
+#| include: false
+
+eeg_summary <- eeg_summary %>%
+  filter(!subject == "01" & !(subject == "36" & word_type == "moral")) %>%
+  mutate(NewCorrect = correct)
+
+eeg_summary <- bind_rows(eeg_summary, relevant_eeg)
+```
+
+```{r}
+#| label: Filtering for NewCorrect == TRUE
+#| include: false
+
+eeg_summary <- eeg_summary %>%
+  filter(NewCorrect == TRUE)
+```
+
+```{r}
+#| label: Count number of trials in each condition for Pz and Cz for each subject
+#| include: false
+
+number_trials <- eeg_summary %>%
+  group_by(subject, word_type, electrode) %>%
+  summarize(num_trials = n())
+```
+
+```{r}
+#| label: Rename is_word column
+#| include: false
+
+eeg_summary <- eeg_summary %>%
+  rename_at(vars(is_word), ~ "Is_Word")
+```
+
+```{r}
+#| label: Create subject-level ERPs for each subject at both electrodes
+#| include: false
+
+subject_eeg <- eeg_summary %>%
+group_by(subject, electrode, word_type, Is_Word, t) %>%
+  summarize(voltage = mean(v))
+```
+
+```{r}
+#| label: Identify whether word is in category and which category word is in
+#| include: false
+
+new_eeg_categories <- subject_eeg %>%
+  mutate(Word_Category = (word_type == "moral" | word_type == "fashion")) %>%
+  mutate(WhichCat = word_type == "moral" | word_type == "non-moral") %>%
+  mutate(word_type = ifelse(word_type == "non-fashion", "fashion", word_type)) %>%
+  mutate(word_type = ifelse(word_type == "non-moral", "moral", word_type))
+```
+
+```{r}
+#| label: Cleaning up category naming
+#| include: false
+
+new_eeg_categories <- new_eeg_categories %>%
+  mutate(Word_Category = ifelse(Word_Category == TRUE, "Moral/Fashion", "Non-Moral/Non-Fashion")) %>%
+  mutate(WhichCat = ifelse(WhichCat == TRUE, "Fashion", "Moral")) %>%
+  mutate(Is_Word = ifelse(Is_Word == TRUE, "Non-Word", "Word"))
+```
+
+```{r}
+#| label: Create grand average ERP for each condition at both electrodes
+#| inlcude: false
+#| echo: false
+
+grand_average_eeg <- new_eeg_categories %>%
+  group_by(word_type, Is_Word, electrode, t, Word_Category, WhichCat) %>%
+  summarize(M = mean(voltage), SE = sd(voltage)/sqrt(n()), .groups="drop")
+```
+
+```{r}
+#| label: Figure for grand average ERPs
+#| include: true
+#| echo: false
+#| fig-cap: Grand average waveforms. Shaded area is +/- SE. The dotted lines demarcate the time windows of interest (P2, N2, P3, and LPP)
+
+ggplot(grand_average_eeg, aes(x = t, y = M, ymax= M+SE, ymin = M-SE, color = Is_Word, fill = Is_Word)) +
+  geom_vline(xintercept = 0)+
+  geom_hline(yintercept = 0)+
+  geom_line(aes(linetype = Word_Category), alpha=0.5)+
+  geom_ribbon(alpha = 0.5, color = NA)+
+  facet_grid(electrode~word_type)+
+  geom_vline(xintercept=200,linetype=3, alpha = 0.5) +
+  geom_vline(xintercept=250,linetype=3, alpha = 0.5) +
+  geom_vline(xintercept=350,linetype=3, alpha = 0.5) +
+  geom_vline(xintercept=600,linetype=3, alpha = 0.5) +
+  geom_vline(xintercept=800,linetype=3, alpha = 0.5) +
+  theme_minimal()+
+  xlab("Time since stimulus onset (ms)")+
+  ylab("Voltage (uv)")
+  
+```
+
+```{r}
+#| label: Creating phase column in eeg data
+#| include: false
+
+eeg_summary <- eeg_summary %>%
+  mutate(phase = ifelse((word_type == "moral"| word_type == "non-moral"), "moral", "fashion"))
+```
+
+```{r}
+#| label: Find average voltage in each of the four time windows
+#| include: false
+
+avg_200_250_v <- eeg_summary %>%
+  group_by(subject, event_id, electrode, word_type, phase, Is_Word) %>%
+  filter(t >= 200 & t < 250) %>%
+  summarize(mean_200_250_v = mean(v))
+
+avg_250_350_v <- eeg_summary %>% 
+  group_by(subject, event_id, word_type, electrode, phase, Is_Word) %>%
+  filter(t >= 250 & t < 350)%>%
+  summarize(mean_250_350_v = mean(v))
+
+avg_350_600_v <- eeg_summary %>% 
+  group_by(subject, event_id, word_type, electrode, phase, Is_Word) %>%
+  filter(t >= 350 & t < 600) %>%
+  summarize(mean_350_600_v = mean(v))
+
+avg_600_800_v <- eeg_summary %>% 
+  group_by(subject, event_id, word_type, electrode, phase, Is_Word) %>%
+  filter(t >= 600 & t < 800) %>%
+  summarize(mean_600_800_v = mean(v))
+```
+
+```{r}
+#| label: Run Pz GEE analyses for moral data
+#| include: false
+
+Pz_200_250_moral_data <- avg_200_250_v %>%
+  filter(electrode == "Pz" & phase == "moral")
+
+Pz_200_250_moral_model <- gee(mean_200_250_v ~ Is_Word,
+	id = subject,
+	data = Pz_200_250_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_200_250_moral_summary <- summary(Pz_200_250_moral_model)
+
+Pz_200_250_moral_estimate <- Pz_200_250_moral_summary$coefficients[2, 'Estimate']
+Pz_200_250_moral_robust_se <- Pz_200_250_moral_summary$coefficients[2, 'Robust S.E.']
+Pz_200_250_moral_robust_z <- Pz_200_250_moral_summary$coefficients[2, 'Robust z']
+
+print(Pz_200_250_moral_estimate)
+print(Pz_200_250_moral_robust_se)
+print(Pz_200_250_moral_robust_z)
+
+Pz_200_250_moral_p_val <- (1 - pnorm(abs(Pz_200_250_moral_robust_z))) * 2
+
+print(Pz_200_250_moral_p_val)
+
+
+
+Pz_250_350_moral_data <- avg_250_350_v %>%
+  filter(electrode == "Pz", phase == "moral")
+
+Pz_250_350_moral_model <- gee(mean_250_350_v ~ Is_Word,
+	id = subject,
+	data = Pz_250_350_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_250_350_moral_summary <- summary(Pz_250_350_moral_model)
+
+Pz_250_350_moral_estimate <- Pz_250_350_moral_summary$coefficients[2, 'Estimate']
+Pz_250_350_moral_robust_se <- Pz_250_350_moral_summary$coefficients[2, 'Robust S.E.']
+Pz_250_350_moral_robust_z <- Pz_250_350_moral_summary$coefficients[2, 'Robust z']
+
+print(Pz_250_350_moral_estimate)
+print(Pz_250_350_moral_robust_se)
+print(Pz_250_350_moral_robust_z)
+
+Pz_250_350_moral_p_val <- (1 - pnorm(abs(Pz_250_350_moral_robust_z))) * 2
+
+print(Pz_250_350_moral_p_val)
+
+
+
+Pz_350_600_moral_data <- avg_350_600_v %>%
+  filter(electrode == "Pz", phase == "moral")
+
+Pz_350_600_moral_model <- gee(mean_350_600_v ~ Is_Word,
+	id = subject,
+	data = Pz_350_600_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_350_600_moral_summary <- summary(Pz_350_600_moral_model)
+
+Pz_350_600_moral_estimate <- Pz_350_600_moral_summary$coefficients[2, 'Estimate']
+Pz_350_600_moral_robust_se <- Pz_350_600_moral_summary$coefficients[2, 'Robust S.E.']
+Pz_350_600_moral_robust_z <- Pz_350_600_moral_summary$coefficients[2, 'Robust z']
+
+print(Pz_350_600_moral_estimate)
+print(Pz_350_600_moral_robust_se)
+print(Pz_350_600_moral_robust_z)
+
+Pz_350_600_moral_p_val <- (1 - pnorm(abs(Pz_350_600_moral_robust_z))) * 2
+
+print(Pz_350_600_moral_p_val)
+
+
+
+
+Pz_600_800_moral_data <- avg_600_800_v %>%
+  filter(electrode == "Pz", phase == "moral")
+
+Pz_600_800_moral_model <- gee(mean_600_800_v ~ Is_Word,
+	id = subject,
+	data = Pz_600_800_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_600_800_moral_summary <- summary(Pz_600_800_moral_model)
+
+Pz_600_800_moral_estimate <- Pz_600_800_moral_summary$coefficients[2, 'Estimate']
+Pz_600_800_moral_robust_se <- Pz_600_800_moral_summary$coefficients[2, 'Robust S.E.']
+Pz_600_800_moral_robust_z <- Pz_600_800_moral_summary$coefficients[2, 'Robust z']
+
+print(Pz_600_800_moral_estimate)
+print(Pz_600_800_moral_robust_se)
+print(Pz_600_800_moral_robust_z)
+
+Pz_600_800_moral_p_val <- (1 - pnorm(abs(Pz_600_800_moral_robust_z))) * 2
+
+print(Pz_600_800_moral_p_val)
+```
+
+```{r}
+#| label: Run Pz GEE analyses for fashion data
+#| include: false
+
+Pz_200_250_fashion_data <- avg_200_250_v %>%
+  filter(electrode == "Pz", phase == "fashion")
+
+Pz_200_250_fashion_model <- gee(mean_200_250_v ~ Is_Word,
+	id = subject,
+	data = Pz_200_250_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_200_250_fashion_summary <- summary(Pz_200_250_fashion_model)
+
+Pz_200_250_fashion_estimate <- Pz_200_250_fashion_summary$coefficients[2, 'Estimate']
+Pz_200_250_fashion_robust_se <- Pz_200_250_fashion_summary$coefficients[2, 'Robust S.E.']
+Pz_200_250_fashion_robust_z <- Pz_200_250_fashion_summary$coefficients[2, 'Robust z']
+
+print(Pz_200_250_fashion_estimate)
+print(Pz_200_250_fashion_robust_se)
+print(Pz_200_250_fashion_robust_z)
+
+Pz_200_250_fashion_p_val <- (1 - pnorm(abs(Pz_200_250_fashion_robust_z))) * 2
+
+print(Pz_200_250_fashion_p_val)
+
+
+
+Pz_250_350_fashion_data <- avg_250_350_v %>%
+  filter(electrode == "Pz", phase == "fashion")
+
+Pz_250_350_fashion_model <- gee(mean_250_350_v ~ Is_Word,
+	id = subject,
+	data = Pz_250_350_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_250_350_fashion_summary <- summary(Pz_250_350_fashion_model)
+
+Pz_250_350_fashion_estimate <- Pz_250_350_fashion_summary$coefficients[2, 'Estimate']
+Pz_250_350_fashion_robust_se <- Pz_250_350_fashion_summary$coefficients[2, 'Robust S.E.']
+Pz_250_350_fashion_robust_z <- Pz_250_350_fashion_summary$coefficients[2, 'Robust z']
+
+print(Pz_250_350_fashion_estimate)
+print(Pz_250_350_fashion_robust_se)
+print(Pz_250_350_fashion_robust_z)
+
+Pz_250_350_fashion_p_val <- (1 - pnorm(abs(Pz_250_350_fashion_robust_z))) * 2
+
+print(Pz_250_350_fashion_p_val)
+
+
+
+Pz_350_600_fashion_data <- avg_350_600_v %>%
+  filter(electrode == "Pz", phase == "fashion")
+
+Pz_350_600_fashion_model <- gee(mean_350_600_v ~ Is_Word,
+	id = subject,
+	data = Pz_350_600_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_350_600_fashion_summary <- summary(Pz_350_600_fashion_model)
+
+Pz_350_600_fashion_estimate <- Pz_350_600_fashion_summary$coefficients[2, 'Estimate']
+Pz_350_600_fashion_robust_se <- Pz_350_600_fashion_summary$coefficients[2, 'Robust S.E.']
+Pz_350_600_fashion_robust_z <- Pz_350_600_fashion_summary$coefficients[2, 'Robust z']
+
+print(Pz_350_600_fashion_estimate)
+print(Pz_350_600_fashion_robust_se)
+print(Pz_350_600_fashion_robust_z)
+
+Pz_350_600_fashion_p_val <- (1 - pnorm(abs(Pz_350_600_fashion_robust_z))) * 2
+
+print(Pz_350_600_fashion_p_val)
+
+
+
+
+Pz_600_800_fashion_data <- avg_600_800_v %>%
+  filter(electrode == "Pz", phase == "fashion")
+
+Pz_600_800_fashion_model <- gee(mean_600_800_v ~ Is_Word,
+	id = subject,
+	data = Pz_600_800_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Pz_600_800_fashion_summary <- summary(Pz_600_800_fashion_model)
+
+Pz_600_800_fashion_estimate <- Pz_600_800_fashion_summary$coefficients[2, 'Estimate']
+Pz_600_800_fashion_robust_se <- Pz_600_800_fashion_summary$coefficients[2, 'Robust S.E.']
+Pz_600_800_fashion_robust_z <- Pz_600_800_fashion_summary$coefficients[2, 'Robust z']
+
+print(Pz_600_800_fashion_estimate)
+print(Pz_600_800_fashion_robust_se)
+print(Pz_600_800_fashion_robust_z)
+
+Pz_600_800_fashion_p_val <- (1 - pnorm(abs(Pz_600_800_fashion_robust_z))) * 2
+
+print(Pz_600_800_fashion_p_val)
+```
+
+```{r}
+#| label: Conduct GEE analyses with moral Cz data
+#| include: false
+
+Cz_200_250_moral_data <- avg_200_250_v %>%
+  filter(electrode == "Cz", phase == "moral")
+
+Cz_200_250_moral_model <- gee(mean_200_250_v ~ Is_Word,
+	id = subject,
+	data = Cz_200_250_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_200_250_moral_summary <- summary(Cz_200_250_moral_model)
+
+Cz_200_250_moral_estimate <- Cz_200_250_moral_summary$coefficients[2, 'Estimate']
+Cz_200_250_moral_robust_se <- Cz_200_250_moral_summary$coefficients[2, 'Robust S.E.']
+Cz_200_250_moral_robust_z <- Cz_200_250_moral_summary$coefficients[2, 'Robust z']
+
+print(Cz_200_250_moral_estimate)
+print(Cz_200_250_moral_robust_se)
+print(Cz_200_250_moral_robust_z)
+
+Cz_200_250_moral_p_val <- (1 - pnorm(abs(Cz_200_250_moral_robust_z))) * 2
+
+print(Cz_200_250_moral_p_val)
+
+
+
+Cz_250_350_moral_data <- avg_250_350_v %>%
+  filter(electrode == "Cz", phase == "moral")
+
+Cz_250_350_moral_model <- gee(mean_250_350_v ~ Is_Word,
+	id = subject,
+	data = Cz_250_350_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_250_350_moral_summary <- summary(Cz_250_350_moral_model)
+
+Cz_250_350_moral_estimate <- Cz_250_350_moral_summary$coefficients[2, 'Estimate']
+Cz_250_350_moral_robust_se <- Cz_250_350_moral_summary$coefficients[2, 'Robust S.E.']
+Cz_250_350_moral_robust_z <- Cz_250_350_moral_summary$coefficients[2, 'Robust z']
+
+print(Cz_250_350_moral_estimate)
+print(Cz_250_350_moral_robust_se)
+print(Cz_250_350_moral_robust_z)
+
+Cz_250_350_moral_p_val <- (1 - pnorm(abs(Cz_250_350_moral_robust_z))) * 2
+
+print(Cz_250_350_moral_p_val)
+
+
+
+Cz_350_600_moral_data <- avg_350_600_v %>%
+  filter(electrode == "Cz", phase == "moral")
+
+Cz_350_600_moral_model <- gee(mean_350_600_v ~ Is_Word,
+	id = subject,
+	data = Cz_350_600_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_350_600_moral_summary <- summary(Cz_350_600_moral_model)
+
+Cz_350_600_moral_estimate <- Cz_350_600_moral_summary$coefficients[2, 'Estimate']
+Cz_350_600_moral_robust_se <- Cz_350_600_moral_summary$coefficients[2, 'Robust S.E.']
+Cz_350_600_moral_robust_z <- Cz_350_600_moral_summary$coefficients[2, 'Robust z']
+
+print(Cz_350_600_moral_estimate)
+print(Cz_350_600_moral_robust_se)
+print(Cz_350_600_moral_robust_z)
+
+Cz_350_600_moral_p_val <- (1 - pnorm(abs(Cz_350_600_moral_robust_z))) * 2
+
+print(Cz_350_600_moral_p_val)
+
+
+
+Cz_600_800_moral_data <- avg_600_800_v %>%
+  filter(electrode == "Cz", phase == "moral")
+
+Cz_600_800_moral_model <- gee(mean_600_800_v ~ Is_Word,
+	id = subject,
+	data = Cz_600_800_moral_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_600_800_moral_summary <- summary(Cz_600_800_moral_model)
+
+Cz_600_800_moral_estimate <- Cz_600_800_moral_summary$coefficients[2, 'Estimate']
+Cz_600_800_moral_robust_se <- Cz_600_800_moral_summary$coefficients[2, 'Robust S.E.']
+Cz_600_800_moral_robust_z <- Cz_600_800_moral_summary$coefficients[2, 'Robust z']
+
+print(Cz_600_800_moral_estimate)
+print(Cz_600_800_moral_robust_se)
+print(Cz_600_800_moral_robust_z)
+
+Cz_600_800_moral_p_val <- (1 - pnorm(abs(Cz_600_800_moral_robust_z))) * 2
+
+print(Cz_600_800_moral_p_val)
+```
+
+```{r}
+#| label: Conduct GEE analyses with fashion Cz data
+#| include: false
+
+Cz_200_250_fashion_data <- avg_200_250_v %>%
+  filter(electrode == "Cz", phase == "fashion")
+
+Cz_200_250_fashion_model <- gee(mean_200_250_v ~ Is_Word,
+	id = subject,
+	data = Cz_200_250_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_200_250_fashion_summary <- summary(Cz_200_250_fashion_model)
+
+Cz_200_250_fashion_estimate <- Cz_200_250_fashion_summary$coefficients[2, 'Estimate']
+Cz_200_250_fashion_robust_se <- Cz_200_250_fashion_summary$coefficients[2, 'Robust S.E.']
+Cz_200_250_fashion_robust_z <- Cz_200_250_fashion_summary$coefficients[2, 'Robust z']
+
+print(Cz_200_250_fashion_estimate)
+print(Cz_200_250_fashion_robust_se)
+print(Cz_200_250_fashion_robust_z)
+
+Cz_200_250_fashion_p_val <- (1 - pnorm(abs(Cz_200_250_fashion_robust_z))) * 2
+
+print(Cz_200_250_fashion_p_val)
+
+
+
+Cz_250_350_fashion_data <- avg_250_350_v %>%
+  filter(electrode == "Cz", phase == "fashion")
+
+Cz_250_350_fashion_model <- gee(mean_250_350_v ~ Is_Word,
+	id = subject,
+	data = Cz_250_350_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_250_350_fashion_summary <- summary(Cz_250_350_fashion_model)
+
+Cz_250_350_fashion_estimate <- Cz_250_350_fashion_summary$coefficients[2, 'Estimate']
+Cz_250_350_fashion_robust_se <- Cz_250_350_fashion_summary$coefficients[2, 'Robust S.E.']
+Cz_250_350_fashion_robust_z <- Cz_250_350_fashion_summary$coefficients[2, 'Robust z']
+
+print(Cz_250_350_fashion_estimate)
+print(Cz_250_350_fashion_robust_se)
+print(Cz_250_350_fashion_robust_z)
+
+Cz_250_350_fashion_p_val <- (1 - pnorm(abs(Cz_250_350_fashion_robust_z))) * 2
+
+print(Cz_250_350_fashion_p_val)
+
+
+
+Cz_350_600_fashion_data <- avg_350_600_v %>%
+  filter(electrode == "Cz", phase == "fashion")
+
+Cz_350_600_fashion_model <- gee(mean_350_600_v ~ Is_Word,
+	id = subject,
+	data = Cz_350_600_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_350_600_fashion_summary <- summary(Cz_350_600_moral_model)
+
+Cz_350_600_fashion_estimate <- Cz_350_600_fashion_summary$coefficients[2, 'Estimate']
+Cz_350_600_fashion_robust_se <- Cz_350_600_fashion_summary$coefficients[2, 'Robust S.E.']
+Cz_350_600_fashion_robust_z <- Cz_350_600_fashion_summary$coefficients[2, 'Robust z']
+
+print(Cz_350_600_fashion_estimate)
+print(Cz_350_600_fashion_robust_se)
+print(Cz_350_600_fashion_robust_z)
+
+Cz_350_600_fashion_p_val <- (1 - pnorm(abs(Cz_350_600_fashion_robust_z))) * 2
+
+print(Cz_350_600_fashion_p_val)
+
+
+
+Cz_600_800_fashion_data <- avg_600_800_v %>%
+  filter(electrode == "Cz", phase == "fashion")
+
+Cz_600_800_fashion_model <- gee(mean_600_800_v ~ Is_Word,
+	id = subject,
+	data = Cz_600_800_fashion_data,
+	family = gaussian,
+	corstr = "exchangeable")
+
+Cz_600_800_fashion_summary <- summary(Cz_600_800_fashion_model)
+
+Cz_600_800_fashion_estimate <- Cz_600_800_fashion_summary$coefficients[2, 'Estimate']
+Cz_600_800_fashion_robust_se <- Cz_600_800_fashion_summary$coefficients[2, 'Robust S.E.']
+Cz_600_800_fashion_robust_z <- Cz_600_800_fashion_summary$coefficients[2, 'Robust z']
+
+print(Cz_600_800_fashion_estimate)
+print(Cz_600_800_fashion_robust_se)
+print(Cz_600_800_fashion_robust_z)
+
+Cz_600_800_fashion_p_val <- (1 - pnorm(abs(Cz_600_800_fashion_robust_z))) * 2
+
+print(Cz_600_800_fashion_p_val)
+```
+
+We analyzed the Pz and Cz electrodes during the same time windows utilized in Gantman et al. (2020): P2 (200-250 ms), N2 (250-350 ms), P3 (350-600 ms), and LPP (600-800 ms). We used the Pz electrode to look for any differences between words and non-words within the moral and fashion categories, and we used the Cz to look for evidence of any moral or fashion pop-out effect.
+
+At the Pz electrode in the moral condition, words elicited a more positive ERP than non-words in the P2 window (beta = `r Pz_200_250_moral_estimate` , *SE* = `r Pz_200_250_moral_robust_se`, *z* = `r Pz_200_250_moral_robust_z`, *p* = `r Pz_200_250_moral_p_val` ), the N2 window (beta = `r Pz_250_350_moral_estimate` , *SE* = `r Pz_250_350_moral_robust_se`, *z* = `r Pz_250_350_moral_robust_z`, *p* = `r Pz_250_350_moral_p_val` ), and the P3 window (beta = `r Pz_350_600_moral_estimate` , *SE* = `r Pz_350_600_moral_robust_se`, *z* = `r Pz_350_600_moral_robust_z`, *p* = `r Pz_350_600_moral_p_val` ). We found no significant difference between words and non-words in the moral condition at the Pz electrode during the LPP time window (beta = `r Pz_600_800_moral_estimate` , *SE* = `r Pz_600_800_moral_robust_se`, *z* = `r Pz_600_800_moral_robust_z`, *p* = `r Pz_600_800_moral_p_val`).
+
+We also found no significant difference in the ERPs elicited by fashion words and fashion non-words at the Pz electrode in the P2 window (beta = `r Pz_200_250_fashion_estimate` , *SE* = `r Pz_200_250_fashion_robust_se`, *z* = `r Pz_200_250_fashion_robust_z`, *p* = `r Pz_200_250_fashion_p_val` ), the N2 window (beta = `r Pz_250_350_fashion_estimate` , *SE* = `r Pz_250_350_fashion_robust_se`, *z* = `r Pz_250_350_fashion_robust_z`, *p* = `r Pz_250_350_fashion_p_val` ), the P3 window (beta = `r Pz_350_600_fashion_estimate` , *SE* = `r Pz_350_600_fashion_robust_se`, *z* = `r Pz_350_600_fashion_robust_z`, *p* = `r Pz_350_600_fashion_p_val` ), or the LPP window (beta = `r Pz_600_800_fashion_estimate` , *SE* = `r Pz_600_800_fashion_robust_se`, *z* = `r Pz_600_800_fashion_robust_z`, *p* = `r Pz_600_800_fashion_p_val` ).
+
+At the Cz electrode, moral words elicited a significantly more positive ERP than non-moral words in the P2 window (beta = `r Cz_200_250_moral_estimate` , *SE* = `r Cz_200_250_moral_robust_se`, *z* = `r Cz_200_250_moral_robust_z`, *p* = `r Cz_200_250_moral_p_val` ). This finding is in the opposite direction of the effect predicted by Gantman et al. (2020) and is marginally significant. So, although it may appear to suggest that moral words elicit a more positive voltage than non-moral words in this time window, this finding is especially questionable. Furthermore, there was no significant difference in the N2 window (beta = `r Cz_250_350_moral_estimate` , *SE* = `r Cz_250_350_moral_robust_se`, *z* = `r Cz_250_350_moral_robust_z`, *p* = `r Cz_250_350_moral_p_val` ), the P3 window (beta = `r Cz_350_600_moral_estimate` , *SE* = `r Cz_350_600_moral_robust_se`, *z* = `r Cz_350_600_moral_robust_z`, *p* = `r Cz_350_600_moral_p_val` ), or the LPP window (beta = `r Cz_600_800_moral_estimate` , *SE* = `r Cz_600_800_moral_robust_se`, *z* = `r Cz_600_800_moral_robust_z`, *p* = `r Cz_600_800_moral_p_val` ).
+
+Moreover, fashion words elicited a significantly more positive ERP than non-fashion words in the P3 time window (beta = `r Cz_350_600_fashion_estimate` , *SE* = `r Cz_350_600_fashion_robust_se`, *z* = `r Cz_350_600_fashion_robust_z`, *p* = `r Cz_350_600_fashion_p_val` ) and the LPP window (beta = `r Cz_600_800_fashion_estimate` , *SE* = `r Cz_600_800_fashion_robust_se`, *z* = `r Cz_600_800_fashion_robust_z`, *p* = `r Cz_600_800_fashion_p_val` ). We found no significant difference in the ERPs elicited by fashion and non-fashion words in the P2 window (beta = `r Cz_200_250_fashion_estimate` , *SE* = `r Cz_200_250_fashion_robust_se`, *z* = `r Cz_200_250_fashion_robust_z`, *p* = `r Cz_200_250_fashion_p_val` ) or the N2 window (beta = `r Cz_250_350_fashion_estimate` , *SE* = `r Cz_250_350_fashion_robust_se`, *z* = `r Cz_250_350_fashion_robust_z`, *p* = `r Cz_250_350_fashion_p_val` ), the P3 window (beta = `r Cz_350_600_fashion_estimate` , *SE* = `r Cz_350_600_fashion_robust_se`, *z* = `r Cz_350_600_fashion_robust_z`, *p* = `r Cz_350_600_fashion_p_val` ). These results provide tentative evidence for the existence of a fashion pop-out effect.
+
+# Discussion
+
+We compared participant data about accuracy and reaction time between the moral and fashion conditions and between words and non-words. In this way, we found weak evidence for a fashion pop-out effect but not for a moral pop-out effect. These results imply that the moral pop-out effect is an instance of semantic priming because there was a pop-out effect with an unprivileged category but not a privileged category. However, as discussed in the Methods section, many of our findings cannot be considered strong evidence for or against the moral pop-out effect because our participants completed a significantly easier task than the participants in comparable research. Moreover, it is possible that the fashion category was more recognizable as a distinct category than the moral category because the concept of morality is more diffuse and subjective than that of fashion. Thus, participants may have been semantically primed more for fashion words than for moral words. We believe that future research could benefit from comparing semantic priming in the moral category and another abstract category. 
+
+Moving on to our EEG results, we found that words elicited more positive ERPs than non-words in all windows other than the LPP time window in the moral condition. This result was expected. We also found that moral words elicited more positive ERPs than non-moral words in the P2 time window. This result was unexpected. Because it is barely significant and contradicts a prediction of Gantman et al. (2020), we believe that this result does not justify interpretation. There were significant differences in the ERPs elicited by fashion words and non-fashion words in the P3 and LPP windows, which corroborates the idea of a fashion pop-out effect.
+
+Overall, our findings tentatively suggest that the underlying phenomenon that causes the moral pop-out effect is semantic priming because we found no evidence supporting its existence. We did find evidence for a fashion pop-out effect, but this could very well be a product of the difference in our experimental task and our lack of statistical power. Due to the promising yet incredibly tentative results of the current study, it would be interesting to see research that deals with its methodological struggles in a more complete way. We would like to see if our results hold when participants complete the same task as previous research instead of a significantly easier one. Along these lines, we would also like to see a study with enough statistical power to investigate the existence of the moral pop-out while controlling for semantic priming.
+
+# Reference
+
+de Leeuw, J. R. (2014). JsPsych: A JavaScript library for creating behavioral experiments in a web browser. *Behavior Research Methods*, *47*(1), 1–12. <https://doi.org/10.3758/s13428-014-0458-y>
+
+Firestone, C., Scholl, B. (2015). Enhanced visual awareness for morality and pajamas? Perception vs. memory in ‘top-down’ effects. *Cognition*, *136*, 409-416. doi: 10.1016/j.cognition.2014.10.014 
+
+Firestone, C., & Scholl, B. J. (2016). Cognition does not affect perception: Evaluating the evidence for “top-down” effects. Behavioral and Brain Sciences, 39. <https://doi.org/10.1017/s0140525x15000965> 
+
+Frank, M. C., Saxe, R. (2012). Teaching Replication. Association for Psychological Science. *Perspectives on Psychological Science*, *7*(6), 600-604. doi: 10.1177/1745691612460686
+
+Gantman, A.P., Van Bavel, J.J. (2014). The moral pop-out effect: enhanced perceptual awareness of morally relevant stimuli. *Cognition*, *132*(1), 22–9. doi: 10.1016/j.cognition.2014.02.007
+
+Gantman, A., Devraj-Kizuk, S., Mende-Siedlecki, P., Van Bavel, J., Mathewson, K. (2020). The time course of moral perception: an ERP investigation of the moral pop-out effect. *Social Cognitive and Affective Neuroscience, 15*(2), 235-246. doi: 10.1093/scan/nsaa030
+
+Open Science Foundation. (2015). Estimating the reproducibility of psychological science. *Science*, *349*(6251). https://doi.org/10.1126/science.aac4716
+
+Protzko, J., Krosnick, J., Nelson, L., Nosek, B. A., Axt, J., Berent, M., Buttrick, N., DeBell, M., Ebersole, C. R., Lundmark, S., MacInnis, B., O’Donnell, M., Perfecto, H., Pustejovsky, J. E., Roeder, S. S., Walleczek, J., & Schooler, J. W. (2023). High replicability of newly discovered social-behavioural findings is achievable. *Nature Human Behaviour*, *8*(2), 311–319. <https://doi.org/10.1038/s41562-023-01749-9> A
+
+## Acknowledgments
+
+We would like to thank Professors Janet Andrews and Joshua de Leeuw of the Vassar College Cognitive Science Program for their guidance and support while writing this manuscript and over the course of the Research Methods class. We would also like to thank Cherrie Chang for assisting with coding and data analysis. Furthermore, we would like to thank Nick Livingston of the Vassar College Cognitive Science Department for help using the EEG. Moreover, we would like to thank the chair of the Cognitive Science Department, John Long, and Liliana Aguis, who were integral in paying participants for completing the experiment.
